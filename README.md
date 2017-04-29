@@ -7,6 +7,7 @@ Package mutexer is a cli generator to generate mutexed version of a type.
 
 # TOC
 - [Install](#install)
+- [Cli](#cli)
   - [Usage](#usage)
     - [$ mutexer -help](#-mutexer--help)
   - [Cli examples](#cli-examples)
@@ -25,6 +26,8 @@ git clone https://github.com/mh-cbon/mutexer.git .
 glide install
 go install
 ```
+
+# Cli
 
 ## Usage
 

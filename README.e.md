@@ -14,6 +14,8 @@ LicenseColor: yellow
 # Install
 {{template "glide/install" .}}
 
+# Cli
+
 ## Usage
 
 #### $ {{exec "mutexer" "-help" | color "sh"}}
