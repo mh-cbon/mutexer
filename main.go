@@ -106,7 +106,7 @@ func showHelp() {
 	fmt.Println()
 	fmt.Println("Usage")
 	fmt.Println()
-	fmt.Printf("	%v [out] [...types]\n\n", name)
+	fmt.Printf("	%v [-p name] [out] [...types]\n\n", name)
 	fmt.Printf("	out:   Output destination of the results, use '-' for stdout.\n")
 	fmt.Printf("	types: A list of types such as src:dst.\n")
 	fmt.Printf("	-p:	   The output package name.\n")
