@@ -23,18 +23,22 @@ LicenseColor: yellow
 ## Cli examples
 
 ```sh
-# Create a mutexed version os Tomate to MyTomate
-mutexer -p demo tomate_gen.go Tomate:MyTomate
+# Create a mutexed version of demo/Tomate to gen_test/TomateSync
+mutexer demo/Tomate:gen_test/TomateSync
+# Specify the out pkg name
+mutexer -p demo demo/Tomate:gen_test/TomateSync
+# Use stdout
+mutexer -p demo - demo/Tomate:gen_test/TomateSync
 ```
 # API example
 
-Following example demonstates a program using it to generate a mutexed version of a type.
+Following example demonstates a program using it to generate a sync version of a type.
 
-#### > {{cat "demo/lib.go" | color "go"}}
+#### > {{cat "demo/main.go" | color "go"}}
 
-Following code is the generated implementation of `Tomate` type.
+Following code is the generated implementation of `TomateSync` type.
 
-#### > {{cat "demo/vegetuxed_gen.go" | color "go"}}
+#### > {{cat "demo/tomatessync.go" | color "go"}}
 
 
 # Recipes
