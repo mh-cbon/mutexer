@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/tools/go/loader"
+
 	"github.com/mh-cbon/astutil"
 	"github.com/mh-cbon/lister/utils"
 )
@@ -69,10 +71,8 @@ func main() {
 			log.Println("Skipped ", srcName)
 			continue
 		}
-		prog := astutil.GetProgramFast(toImport).Package(toImport)
-		foundTypes := astutil.FindTypes(prog)
-		foundMethods := astutil.FindMethods(prog)
-		foundCtors := astutil.FindCtors(prog, foundTypes)
+		prog := astutil.GetProgramFast(toImport)
+		pkg := prog.Package(toImport)
 
 		fileOut := filesOut.Get(todo.ToPath)
 		fileOut.PkgName = outPkg
@@ -89,7 +89,10 @@ func main() {
 			fileOut.AddImport(todo.FromPkgPath, "")
 		}
 
-		res := processType(destName, srcName, foundCtors, foundMethods)
+		res, extraImports := processType(destName, srcName, pkg)
+		for _, i := range extraImports {
+			fileOut.AddImport(i, "")
+		}
 		io.Copy(&fileOut.Body, &res)
 	}
 
@@ -141,13 +144,19 @@ func findOutPkg(todo utils.TransformArg) string {
 	return todo.ToPkgPath
 }
 
-func processType(destName, srcName string, foundCtors map[string]*ast.FuncDecl, foundMethods map[string][]*ast.FuncDecl) bytes.Buffer {
+func processType(destName, srcName string, pkg *loader.PackageInfo) (bytes.Buffer, []string) {
 
+	foundTypes := astutil.FindTypes(pkg)
+	foundMethods := astutil.FindMethods(pkg)
+	foundCtors := astutil.FindCtors(pkg, foundTypes)
+
+	extraImports := []string{}
 	var b bytes.Buffer
 	dest := &b
 
 	srcConcrete := astutil.GetUnpointedType(srcName)
 	dstConcrete := astutil.GetUnpointedType(destName)
+	dstStar := astutil.GetPointedType(destName)
 
 	fmt.Fprintf(dest, "// %v mutexes a %v\n", dstConcrete, srcConcrete)
 	fmt.Fprintf(dest, `type %v struct{
@@ -167,8 +176,8 @@ func processType(destName, srcName string, foundCtors map[string]*ast.FuncDecl, 
 
 	fmt.Fprintf(dest, `// New%v constructs a new %v
 		`, dstConcrete, destName)
-	fmt.Fprintf(dest, `func New%v(%v) *%v {
-		`, dstConcrete, ctorParams, dstConcrete)
+	fmt.Fprintf(dest, `func New%v(%v) %v {
+		`, dstConcrete, ctorParams, dstStar)
 	fmt.Fprintf(dest, `ret := &%v{}
 		`, dstConcrete)
 	if ctorName != "" {
@@ -184,10 +193,12 @@ func processType(destName, srcName string, foundCtors map[string]*ast.FuncDecl, 
 		}
 	`)
 
+	receiverName := "t"
+
 	for _, m := range foundMethods[srcConcrete] {
 		withEllipse := astutil.MethodHasEllipse(m)
 		paramNames := astutil.MethodParamNamesInvokation(m, withEllipse)
-		receiverName := astutil.ReceiverName(m)
+		receiverName = astutil.ReceiverName(m)
 		methodName := astutil.MethodName(m)
 		callExpr := fmt.Sprintf("%v.embed.%v(%v)", receiverName, methodName, paramNames)
 		sExpr := fmt.Sprintf(`
@@ -208,5 +219,39 @@ func processType(destName, srcName string, foundCtors map[string]*ast.FuncDecl, 
 		fmt.Fprintf(dest, "%v\n", astutil.Print(m))
 	}
 
-	return b
+	if !astutil.HasMethod(pkg, srcConcrete, "UnmarshalJSON") ||
+		!astutil.HasMethod(pkg, srcConcrete, "MarshalJSON") {
+		extraImports = append(extraImports, "encoding/json")
+	}
+
+	if astutil.HasMethod(pkg, srcConcrete, "UnmarshalJSON") == false {
+		// Add marshalling capabilities
+		fmt.Fprintf(dest, `
+		//UnmarshalJSON JSON unserializes %v
+		func (%v %v) UnmarshalJSON(b []byte) error {
+			t.mutex.Lock()
+			defer t.mutex.Unlock()
+			var items []%v
+			if err := json.Unmarshal(b, &items); err != nil {
+				return err
+			}
+			t.items = items
+			return nil
+		}
+		`, dstConcrete, receiverName, dstStar, srcName)
+		fmt.Fprintln(dest)
+	}
+	if astutil.HasMethod(pkg, srcConcrete, "UnmarshalJSON") == false {
+		fmt.Fprintf(dest, `
+		//MarshalJSON JSON serializes %v
+		func (%v %v) MarshalJSON() ([]byte, error) {
+			t.mutex.Lock()
+			defer t.mutex.Unlock()
+			return json.Marshal(t.items)
+		}
+		`, dstConcrete, receiverName, dstStar)
+		fmt.Fprintln(dest)
+	}
+
+	return b, extraImports
 }

@@ -169,3 +169,17 @@ func (t *TomatesSync) Empty() bool {
 	defer t.mutex.Unlock()
 	return t.embed.Empty()
 }
+
+// UnmarshalJSON is mutexed
+func (t *TomatesSync) UnmarshalJSON(b []byte) error {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return t.embed.UnmarshalJSON(b)
+}
+
+// MarshalJSON is mutexed
+func (t *TomatesSync) MarshalJSON() ([]byte, error) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return t.embed.MarshalJSON()
+}
